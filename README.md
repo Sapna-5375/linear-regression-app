@@ -2,6 +2,8 @@
 
 An interactive, visually stunning Streamlit application designed to teach the fundamentals of Linear Regression. From raw data processing to the mathematical underpinnings of Gradient Descent, this tool offers a complete "glass-box" experience for students and data enthusiasts.
 
+**🔴 Live Demo:** [View the Application on Streamlit Cloud](https://linear-regression-app-eqrg3xfzcaw7nxegsjzzsy.streamlit.app/)
+
 ## ✨ Features
 
 - **📂 Dataset Input**: Upload your own CSV datasets, instantly preview data, and analyze schema metadata.
