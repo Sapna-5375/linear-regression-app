@@ -318,19 +318,98 @@ elif choice == "⚙️ 5. Training & Evaluation":
         model.fit(X_train, y_train)
         st.session_state['model'] = model
         
-        # Display Learned Parameters
-        st.subheader("Final Learned Parameters")
-        st.write(f"**Intercept (Bias - $\\theta_0$):** {model.intercept_:.4f}")
+        st.markdown("---")
+        st.subheader("1. Final Learned Parameters ($\\theta$)")
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.write(f"**Intercept (Bias - $\\theta_0$):** `{model.intercept_:.4f}`")
         for i, f in enumerate(feat):
-            st.write(f"**Coefficient for {f} (Weight - $\\theta_{i+1}$):** {model.coef_[i]:.4f}")
+            st.write(f"**Coefficient for {f} (Weight - $\\theta_{i+1}$):** `{model.coef_[i]:.4f}`")
+        st.markdown('</div>', unsafe_allow_html=True)
             
-        # Metrics Display
+        st.markdown("---")
+        st.subheader("2. Model Accuracy Metrics")
         preds = model.predict(X_test)
-        st.subheader("Model Accuracy Metrics")
         m1, m2, m3 = st.columns(3)
         with m1: st.metric("R² Score (Goodness of Fit)", round(r2_score(y_test, preds), 4))
         with m2: st.metric("Mean Squared Error (MSE)", round(mean_squared_error(y_test, preds), 4))
         with m3: st.metric("Mean Absolute Error (MAE)", round(mean_absolute_error(y_test, preds), 4))
+
+        st.markdown("---")
+        st.subheader("3. Model Visualization")
+        
+        if len(feat) == 1:
+            st.write(f"**Single Feature Regression Line:** `{feat[0]}` vs `{target}`")
+            fig = px.scatter(x=X_test[feat[0]], y=y_test, title="Test Data vs Model Prediction")
+            fig.add_trace(go.Scatter(x=X_test[feat[0]], y=preds, mode='lines', name='Regression Line', line=dict(color='#7c3aed', width=3)))
+            fig.update_layout(xaxis_title=feat[0], yaxis_title=target)
+            st.plotly_chart(fig, use_container_width=True)
+            
+        elif len(feat) == 2:
+            st.write(f"**Multi-dimensional Visualization (3D Plane):** `{feat[0]}` & `{feat[1]}` vs `{target}`")
+            fig = go.Figure()
+            fig.add_trace(go.Scatter3d(x=X_test[feat[0]], y=X_test[feat[1]], z=y_test, mode='markers', name='Actual Data', marker=dict(size=4, color='#10b981')))
+            
+            # Create a meshgrid for the plane
+            x_min, x_max = X_test[feat[0]].min(), X_test[feat[0]].max()
+            y_min, y_max = X_test[feat[1]].min(), X_test[feat[1]].max()
+            x_grid, y_grid = np.meshgrid(np.linspace(x_min, x_max, 10), np.linspace(y_min, y_max, 10))
+            
+            # Predict z values for the mesh
+            z_grid = model.intercept_ + model.coef_[0] * x_grid + model.coef_[1] * y_grid
+            
+            fig.add_trace(go.Surface(x=x_grid, y=y_grid, z=z_grid, name='Regression Plane', opacity=0.6, colorscale='Purples'))
+            fig.update_layout(scene=dict(xaxis_title=feat[0], yaxis_title=feat[1], zaxis_title=target), title="3D Scatter with Hyperplane")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info(f"Visualizing {len(feat)} dimensions is not natively supported in 3D plots. We recommend keeping it to 1 or 2 features for visual interpretation.")
+            
+        st.markdown("---")
+        st.subheader("4. Cost Convergence (Gradient Descent Simulation)")
+        st.markdown('<div class="explanation-box">LinearRegression uses exact Ordinary Least Squares (OLS) which calculates parameters instantly without iterations. To visualize how a model <b>learns over time</b>, we can simulate Gradient Descent below:</div>', unsafe_allow_html=True)
+        
+        c1, c2 = st.columns(2)
+        with c1: learning_rate = st.slider("Learning Rate (alpha)", 0.001, 0.5, 0.1, format="%.3f")
+        with c2: epochs = st.slider("Epochs (Iterations)", 10, 500, 100)
+        
+        if st.button("Simulate Gradient Descent & Plot Convergence"):
+            # Simple GD Simulation
+            X_gd = X_train.values
+            y_gd = y_train.values.reshape(-1, 1)
+            m = len(y_gd)
+            
+            # Add bias column
+            X_b = np.c_[np.ones((m, 1)), X_gd]
+            theta = np.zeros((X_b.shape[1], 1))
+            
+            cost_history = []
+            
+            # Standardize X for GD stability if not done
+            X_b_scaled = X_b.copy()
+            if X_b.shape[1] > 1:
+                X_b_scaled[:, 1:] = (X_b[:, 1:] - np.mean(X_b[:, 1:], axis=0)) / (np.std(X_b[:, 1:], axis=0) + 1e-8)
+                
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for epoch in range(epochs):
+                predictions = X_b_scaled.dot(theta)
+                errors = predictions - y_gd
+                cost = (1 / (2 * m)) * np.sum(errors ** 2)
+                cost_history.append(cost)
+                
+                gradients = (1 / m) * X_b_scaled.T.dot(errors)
+                theta = theta - learning_rate * gradients
+                
+                if epoch % max(1, (epochs // 10)) == 0:
+                    progress_bar.progress(min(1.0, (epoch + 1) / epochs))
+                    status_text.text(f"Epoch {epoch+1}/{epochs} | Cost: {cost:.4f}")
+                    
+            progress_bar.progress(1.0)
+            status_text.text(f"Training Complete! Final Cost: {cost_history[-1]:.4f}")
+            
+            fig_cost = px.line(x=range(1, epochs + 1), y=cost_history, title="Cost Function Convergence", labels={'x': 'Epochs (Iterations)', 'y': 'Mean Squared Error (Cost)'})
+            fig_cost.update_traces(line=dict(color='#10b981', width=3))
+            st.plotly_chart(fig_cost, use_container_width=True)
 
 # --- 6. PREDICTION & INFERENCE ---
 elif choice == "🔮 6. Prediction & Inference":
